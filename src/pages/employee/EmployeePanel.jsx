@@ -5,16 +5,17 @@ import { LogOut, Clock, Plus, User, X, ChevronRight, ChevronLeft, SaudiRiyal } f
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
-const categories = ['الكل', 'خيمة صغيرة', 'خيمة كبيرة', 'طاولات', 'خيمة VIP']
+const categories = ['خيمة صغيرة', 'خيمة كبيرة', 'طاولات', 'خيمة VIP']
 const paymentTypeLabel = { cash: 'نقدي 💵', network: 'شبكة 💳', split: 'جزئي 🔀' }
-const paymentTimingLabel = { now: 'دُفع ⚡', later: 'عند الانتهاء 🕐' }
+const paymentTimingLabel = { now: 'تم الدفع ⚡', later: 'عند الانتهاء 🕐' }
 
 /* ─────────────────────────────────────────
    New Booking Modal
 ───────────────────────────────────────── */
 function NewBookingModal({ onClose, onSuccess, currentUser }) {
     const [step, setStep] = useState(1) // 1: choose tent  2: details
-    const [selectedCategory, setSelectedCategory] = useState('الكل')
+    // const [selectedCategory, setSelectedCategory] = useState('الكل')
+    const [selectedCategory, setSelectedCategory] = useState('خيمة صغيرة')
     const [tents, setTents] = useState([])
     const [loadingTents, setLoadingTents] = useState(true)
     const [selectedTent, setSelectedTent] = useState(null)
