@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, Badge } from '../../components/UI'
 import { useAuth } from '../../context/AuthContext'
-import { LogOut, Clock, Plus, User, X, ChevronRight, ChevronLeft, SaudiRiyal } from 'lucide-react'
+import { LogOut, Clock, Plus, User, X, ChevronRight, ChevronLeft, SaudiRiyal, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -304,6 +304,165 @@ function CloseConfirmModal({ booking, onConfirm, onCancel }) {
 }
 
 /* ─────────────────────────────────────────
+   Change Tent Modal
+───────────────────────────────────────── */
+function ChangeTentModal({ booking, onConfirm, onCancel }) {
+    // const [selectedCategory, setSelectedCategory] = useState('الكل')
+    const [selectedCategory, setSelectedCategory] = useState('خيمة صغيرة')
+    const [tents, setTents] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [selectedTent, setSelectedTent] = useState(null)
+    const [submitting, setSubmitting] = useState(false)
+
+    useEffect(() => {
+        const fetchTents = async () => {
+            setLoading(true)
+            try {
+                const { data: activeBookings } = await supabase
+                    .from('bookings').select('tent_id').eq('status', 'active')
+                const activeTentIds = (activeBookings || []).map(b => b.tent_id)
+
+                let query = supabase.from('tents').select('*').eq('status', 'available').order('id', { ascending: true })
+                if (activeTentIds.length > 0) query = query.not('id', 'in', `(${activeTentIds.join(',')})`)
+
+                const { data, error } = await query
+                if (error) throw error
+                setTents(data || [])
+            } catch {
+                toast.error('حدث خطأ أثناء جلب الخيام')
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchTents()
+    }, [])
+
+    const handleConfirm = async () => {
+        if (!selectedTent) return
+        setSubmitting(true)
+        try {
+            const newTotal = selectedTent.base_price * booking.duration_hours
+
+            // Update booking
+            const { error: bErr } = await supabase.from('bookings').update({
+                tent_id: selectedTent.id,
+                total_price: newTotal
+            }).eq('id', booking.id)
+            if (bErr) throw bErr
+
+            // Update new tent
+            const { error: tErr1 } = await supabase.from('tents').update({ status: 'booked' }).eq('id', selectedTent.id)
+            if (tErr1) throw tErr1
+
+            // Update old tent
+            const { error: tErr2 } = await supabase.from('tents').update({ status: 'available' }).eq('id', booking.tent_id)
+            if (tErr2) throw tErr2
+
+            toast.success('تم تغيير الخيمة بنجاح ✅')
+            onConfirm()
+        } catch {
+            toast.error('حدث خطأ أثناء تغيير الخيمة')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const priceDiff = selectedTent ? (selectedTent.base_price * booking.duration_hours) - booking.total_price : 0
+    const isSameCategory = selectedTent && selectedTent.category === booking.tents?.category
+    const filteredTents = tents.filter(t => selectedCategory === 'الكل' || t.category === selectedCategory)
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden" style={{ maxHeight: '90vh' }}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <h2 className="text-lg font-bold text-secondary flex items-center gap-2">
+                        <RefreshCw size={20} className="text-primary" /> تغيير الخيمة (الحالية: {booking.tents?.number})
+                    </h2>
+                    <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Category Filter */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-100 flex-shrink-0">
+                        {categories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(cat)}
+                                className={`px-4 py-1.5 rounded-full font-bold whitespace-nowrap text-xs transition-colors ${selectedCategory === cat ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            >{cat}</button>
+                        ))}
+                    </div>
+
+                    {loading ? (
+                        <div className="flex items-center justify-center py-12 text-slate-400 font-bold">جاري تحميل الخيام...</div>
+                    ) : (
+                        <div className="grid grid-cols-3 gap-3">
+                            {filteredTents.map(tent => (
+                                <button
+                                    key={tent.id}
+                                    onClick={() => setSelectedTent(tent)}
+                                    className={`p-3 rounded-xl border-2 text-center transition-all ${selectedTent?.id === tent.id ? 'border-primary bg-primary/10' : 'border-slate-100 bg-slate-50 hover:border-slate-300'}`}
+                                >
+                                    <p className="font-bold text-lg text-secondary">{tent.number}</p>
+                                    <p className="text-xs text-slate-500">{tent.category}</p>
+                                </button>
+                            ))}
+                            {filteredTents.length === 0 && <div className="col-span-3 text-center py-8 text-slate-400 font-bold">لا توجد خيام متاحة في هذه الفئة</div>}
+                        </div>
+                    )}
+
+                    {selectedTent && (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4">
+                            <h3 className="font-bold text-secondary mb-2">تفاصيل التغيير</h3>
+                            <div className="space-y-2">
+                                <p className="text-sm flex justify-between items-center"><span className="text-slate-500">من الخيمة:</span> <b className="text-slate-700">{booking.tents?.number} ({booking.tents?.category})</b></p>
+                                <p className="text-sm flex justify-between items-center"><span className="text-slate-500">إلى الخيمة:</span> <b className="text-primary bg-primary/10 px-2 py-0.5 rounded-md">{selectedTent.number} ({selectedTent.category})</b></p>
+                            </div>
+
+                            <hr className="my-3 border-slate-200" />
+
+                            {!isSameCategory ? (
+                                <div className={`p-3 rounded-lg border ${priceDiff > 0 ? 'bg-amber-50 border-amber-200' : priceDiff < 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-100 border-slate-200'}`}>
+                                    <div className="flex justify-between items-center text-sm font-bold mb-1">
+                                        <span className={priceDiff > 0 ? 'text-amber-800' : priceDiff < 0 ? 'text-emerald-800' : 'text-slate-600'}>
+                                            الفئة مختلفة:
+                                        </span>
+                                        <span className="font-mono" dir="ltr">
+                                            {priceDiff > 0 ? `+${priceDiff}` : priceDiff < 0 ? `${priceDiff}` : '0'} ريال
+                                        </span>
+                                    </div>
+                                    <p className={`text-xs ${priceDiff > 0 ? 'text-amber-600' : priceDiff < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                        {priceDiff > 0 ? 'مبلغ إضافي مطلوب دفعه' : priceDiff < 0 ? 'مبلغ مسترد للعميل' : 'لا يوجد فرق في السعر'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-800 flex justify-between items-center text-sm">
+                                    <span className="font-bold">نفس الفئة:</span>
+                                    <span className="font-bold">لا يوجد فرق في السعر</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+                    <button onClick={onCancel} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-100 transition-colors">إلغاء</button>
+                    <button
+                        disabled={!selectedTent || submitting}
+                        onClick={handleConfirm}
+                        className="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:bg-emerald-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                    >
+                        {submitting ? 'جاري التغيير...' : <><RefreshCw size={16} /> تأكيد التغيير</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/* ─────────────────────────────────────────
    Main Employee Panel
 ───────────────────────────────────────── */
 export default function EmployeePanel() {
@@ -313,13 +472,14 @@ export default function EmployeePanel() {
     const [currentTime, setCurrentTime] = useState(new Date())
     const [showNewBooking, setShowNewBooking] = useState(false)
     const [confirmBooking, setConfirmBooking] = useState(null)
+    const [changeTentBooking, setChangeTentBooking] = useState(null)
 
     const fetchBookings = async () => {
         try {
             setLoading(true)
             const { data, error } = await supabase
                 .from('bookings')
-                .select('*, tents (number, category)')
+                .select('*, tents (number, category, base_price)')
                 .eq('status', 'active')
                 .order('created_at', { ascending: false })
             if (error) throw error
@@ -469,10 +629,15 @@ export default function EmployeePanel() {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-5 py-4 text-center">
-                                                        <button onClick={() => setConfirmBooking(b)} className="px-4 py-3 w-full bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg font-bold text-sm transition-colors">
-                                                            إنهاء الحجز
-                                                        </button>
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex flex-col gap-2">
+                                                            <button onClick={() => setChangeTentBooking(b)} className="px-4 py-2 w-full bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
+                                                                <RefreshCw size={14} /> تغيير الخيمة
+                                                            </button>
+                                                            <button onClick={() => setConfirmBooking(b)} className="px-4 py-2 w-full bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg font-bold text-xs transition-colors">
+                                                                إنهاء الحجز
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             )
@@ -499,6 +664,18 @@ export default function EmployeePanel() {
                     booking={confirmBooking}
                     onConfirm={handleCloseBooking}
                     onCancel={() => setConfirmBooking(null)}
+                />
+            )}
+
+            {/* Change Tent Modal */}
+            {changeTentBooking && (
+                <ChangeTentModal
+                    booking={changeTentBooking}
+                    onConfirm={() => {
+                        setChangeTentBooking(null)
+                        fetchBookings()
+                    }}
+                    onCancel={() => setChangeTentBooking(null)}
                 />
             )}
         </div>
