@@ -19,7 +19,8 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
     const [tents, setTents] = useState([])
     const [loadingTents, setLoadingTents] = useState(true)
     const [selectedTent, setSelectedTent] = useState(null)
-    const [duration, setDuration] = useState(1)
+    const [bookingType, setBookingType] = useState('hourly') // 'hourly' | 'daily'
+    const [duration, setDuration] = useState(1) // either hours or days depending on bookingType
     const [paymentType, setPaymentType] = useState('cash')
     const [paymentTiming, setPaymentTiming] = useState('now')
     const [cashAmount, setCashAmount] = useState('')
@@ -49,7 +50,8 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
     }, [])
 
     const filteredTents = tents.filter(t => selectedCategory === 'الكل' || t.category === selectedCategory)
-    const total = selectedTent ? selectedTent.base_price * duration : 0
+    const actualDurationHours = bookingType === 'daily' ? duration * 24 : duration
+    const total = selectedTent ? selectedTent.base_price * actualDurationHours : 0
 
     const handleSubmit = async () => {
         if (paymentType === 'split') {
@@ -65,7 +67,7 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
                 tent_id: selectedTent.id,
                 user_id: currentUser.id,
                 customer_name: 'بدون اسم',
-                duration_hours: duration,
+                duration_hours: actualDurationHours,
                 total_price: total,
                 payment_type: paymentType,
                 payment_timing: paymentTiming,
@@ -182,13 +184,36 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
 
                             {/* Duration */}
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1.5">المدة (بالساعات)</label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm font-bold text-slate-700">المدة</label>
+                                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setBookingType('hourly'); setDuration(1); }}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'hourly' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            بالساعة
+                                        </button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setBookingType('daily'); setDuration(1); }}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            باليوم
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex items-center gap-3">
                                     <button type="button" onClick={() => setDuration(Math.max(1, duration - 1))}
                                         className="w-11 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-xl flex items-center justify-center active:scale-95 transition-all">−</button>
-                                    <input type="number" min="1" value={duration}
-                                        onChange={e => setDuration(Math.max(1, parseInt(e.target.value) || 1))}
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary text-center text-xl font-bold" />
+                                    <div className="flex-1 relative">
+                                        <input type="number" min="1" value={duration}
+                                            onChange={e => setDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-primary text-center text-xl font-bold" />
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                                            {bookingType === 'hourly' ? 'ساعة' : 'يوم'}
+                                        </span>
+                                    </div>
                                     <button type="button" onClick={() => setDuration(duration + 1)}
                                         className="w-11 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-xl flex items-center justify-center active:scale-95 transition-all">+</button>
                                 </div>
@@ -463,6 +488,127 @@ function ChangeTentModal({ booking, onConfirm, onCancel }) {
 }
 
 /* ─────────────────────────────────────────
+   Change Time Modal
+───────────────────────────────────────── */
+function ChangeTimeModal({ booking, onConfirm, onCancel }) {
+    const initialIsDaily = booking.duration_hours >= 24 && booking.duration_hours % 24 === 0
+    const [bookingType, setBookingType] = useState(initialIsDaily ? 'daily' : 'hourly')
+    const [duration, setDuration] = useState(initialIsDaily ? booking.duration_hours / 24 : booking.duration_hours)
+    const [submitting, setSubmitting] = useState(false)
+
+    const actualDurationHours = bookingType === 'daily' ? duration * 24 : duration
+    const basePrice = booking.tents?.base_price || 0
+    const newTotal = basePrice * actualDurationHours
+    const priceDiff = newTotal - booking.total_price
+
+    const handleSubmit = async () => {
+        if (actualDurationHours === booking.duration_hours) return onCancel()
+        setSubmitting(true)
+        try {
+            const { error: bErr } = await supabase.from('bookings').update({
+                duration_hours: actualDurationHours,
+                total_price: newTotal
+            }).eq('id', booking.id)
+            if (bErr) throw bErr
+
+            toast.success('تم تحديث وقت الحجز بنجاح ✅')
+            onConfirm()
+        } catch {
+            toast.error('حدث خطأ أثناء تحديث الوقت')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" dir="rtl">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <h2 className="text-lg font-bold text-secondary flex items-center gap-2">
+                        <Clock size={20} className="text-primary" /> تعديل وقت الحجز
+                    </h2>
+                    <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-5">
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                        <p className="flex justify-between text-sm mb-2"><span className="text-slate-500">الخيمة:</span><span className="font-bold text-secondary">{booking.tents?.number}</span></p>
+                        <p className="flex justify-between text-sm mb-2"><span className="text-slate-500">الوقت:</span><span className="font-bold">{booking.duration_hours} ساعة</span></p>
+                        <p className="flex justify-between text-sm"><span className="text-slate-500">الإجمالي الحالي:</span><span className="font-bold">{booking.total_price} ريال</span></p>
+                    </div>
+
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-bold text-slate-700">المدة الجديدة</label>
+                            <div className="flex bg-slate-100 rounded-lg p-0.5">
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setBookingType('hourly'); setDuration(booking.duration_hours); }}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'hourly' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    بالساعة
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setBookingType('daily'); setDuration(Math.max(1, Math.floor(booking.duration_hours / 24))); }}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    باليوم
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setDuration(Math.max(1, duration - 1))}
+                                className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-2xl flex items-center justify-center active:scale-95 transition-all">−</button>
+                            <div className="flex-1 relative">
+                                <input type="number" min="1" value={duration}
+                                    onChange={e => setDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-primary text-center text-2xl font-bold" />
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                                    {bookingType === 'hourly' ? 'ساعة' : 'يوم'}
+                                </span>
+                            </div>
+                            <button type="button" onClick={() => setDuration(duration + 1)}
+                                className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-2xl flex items-center justify-center active:scale-95 transition-all">+</button>
+                        </div>
+                    </div>
+
+                    {actualDurationHours !== booking.duration_hours && (
+                        <div className={`p-4 rounded-xl border ${priceDiff > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <div className="flex justify-between items-center font-bold mb-1">
+                                <span className={priceDiff > 0 ? 'text-amber-800' : 'text-emerald-800'}>
+                                    {priceDiff > 0 ? 'مبلغ إضافي:' : 'مبلغ مسترد:'}
+                                </span>
+                                <span className="font-mono text-lg" dir="ltr">
+                                    {Math.abs(priceDiff)} ريال
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2 flex justify-between items-center">
+                                <span>الإجمالي الجديد:</span>
+                                <span className="font-bold text-base text-slate-700">{newTotal} ريال</span>
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3">
+                    <button onClick={onCancel} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-100 transition-colors">إلغاء</button>
+                    <button
+                        disabled={submitting || actualDurationHours === booking.duration_hours}
+                        onClick={handleSubmit}
+                        className="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:bg-emerald-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                    >
+                        {submitting ? 'جاري التحديث...' : <><Clock size={16} /> تأكيد المدة</>}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/* ─────────────────────────────────────────
    Main Employee Panel
 ───────────────────────────────────────── */
 export default function EmployeePanel() {
@@ -473,6 +619,7 @@ export default function EmployeePanel() {
     const [showNewBooking, setShowNewBooking] = useState(false)
     const [confirmBooking, setConfirmBooking] = useState(null)
     const [changeTentBooking, setChangeTentBooking] = useState(null)
+    const [changeTimeBooking, setChangeTimeBooking] = useState(null)
 
     const fetchBookings = async () => {
         try {
@@ -631,6 +778,9 @@ export default function EmployeePanel() {
                                                     </td>
                                                     <td className="px-5 py-4">
                                                         <div className="flex flex-col gap-2">
+                                                            <button onClick={() => setChangeTimeBooking(b)} className="px-4 py-2 w-full bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
+                                                                <Clock size={14} /> تعديل الوقت
+                                                            </button>
                                                             <button onClick={() => setChangeTentBooking(b)} className="px-4 py-2 w-full bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
                                                                 <RefreshCw size={14} /> تغيير الخيمة
                                                             </button>
@@ -676,6 +826,18 @@ export default function EmployeePanel() {
                         fetchBookings()
                     }}
                     onCancel={() => setChangeTentBooking(null)}
+                />
+            )}
+
+            {/* Change Time Modal */}
+            {changeTimeBooking && (
+                <ChangeTimeModal
+                    booking={changeTimeBooking}
+                    onConfirm={() => {
+                        setChangeTimeBooking(null)
+                        fetchBookings()
+                    }}
+                    onCancel={() => setChangeTimeBooking(null)}
                 />
             )}
         </div>
