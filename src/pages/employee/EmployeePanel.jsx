@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, Badge } from '../../components/UI'
 import { useAuth } from '../../context/AuthContext'
-import { LogOut, Clock, Plus, User, X, ChevronRight, ChevronLeft, SaudiRiyal, RefreshCw } from 'lucide-react'
+import { LogOut, Clock, Plus, User, X, ChevronRight, ChevronLeft, SaudiRiyal, RefreshCw, ClipboardMinus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -80,6 +80,135 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
             if (tErr) throw tErr
 
             toast.success(`تم إنشاء الحجز بنجاح! ${total} ريال`)
+
+            try {
+                const now = new Date();
+                const yyyy = String(now.getFullYear());
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                const dateStr = `${yyyy}/${mm}/${dd}`;
+
+                const entryTimeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+
+                const exitDate = new Date(now.getTime() + actualDurationHours * 3600000);
+                const exitTimeStr = exitDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+
+                const paid = paymentTiming === 'now' ? 'نعم' : 'لا';
+                const durationLabel = bookingType === 'daily' ? `${actualDurationHours / 24} يوم` : `${actualDurationHours} ساعة`;
+
+                const html = `
+                    <!DOCTYPE html>
+                    <html lang="ar" dir="rtl">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>ايصال حجز</title>
+                        <style>
+                            @media print {
+                                @page { margin: 0; }
+                                body { margin: 0; padding: 10px; }
+                            }
+                            body {
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                font-size: 14px;
+                                color: #000;
+                                width: 100%;
+                                max-width: 300px;
+                                margin: 0 auto;
+                            }
+                            .header {
+                                text-align: center;
+                                margin-bottom: 25px;
+                            }
+                            .logos {
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                gap: 15px;
+                                font-size: 24px;
+                                font-weight: 900;
+                                line-height: 1.1;
+                            }
+                            .divider {
+                                width: 1.5px;
+                                height: 45px;
+                                background: #000;
+                            }
+                            .grid-container {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 20px 5px;
+                                font-weight: bold;
+                            }
+                            .grid-item {
+                                display: flex;
+                                justify-content: flex-start;
+                                align-items: center;
+                                gap: 8px;
+                            }
+                            .label {
+                                background-color: #d1d5db;
+                                padding: 3px 8px;
+                                border-radius: 4px;
+                                font-size: 11px;
+                                -webkit-print-color-adjust: exact;
+                                color-adjust: exact;
+                                white-space: nowrap;
+                            }
+                            .value {
+                                font-size: 13px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div class="logos">
+                                <div style="text-align: center;">تلال<br>مكة</div>
+                            </div>
+                        </div>
+                        <div class="grid-container">
+                            <div class="grid-item">
+                                <span class="label">التاريخ</span>
+                                <span class="value" dir="ltr">${dateStr}</span>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label">وقت الدخول</span>
+                                <span class="value" dir="ltr">${entryTimeStr}</span>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label">رقم الخيمة</span>
+                                <span class="value">${selectedTent.number}</span>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label">المدة</span>
+                                <span class="value">${durationLabel}</span>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label">مدفوع</span>
+                                <span class="value">${paid}</span>
+                            </div>
+                            <div class="grid-item">
+                                <span class="label">وقت الخروج</span>
+                                <span class="value" dir="ltr">${exitTimeStr}</span>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                const printWin = window.open('', '', 'width=400,height=600');
+                if (printWin) {
+                    printWin.document.write(html);
+                    printWin.document.close();
+                    printWin.focus();
+                    setTimeout(() => {
+                        printWin.print();
+                        printWin.close();
+                    }, 500);
+                }
+            } catch (err) {
+                console.error("Print error", err);
+            }
+
             onSuccess()
             onClose()
         } catch {
@@ -187,15 +316,15 @@ function NewBookingModal({ onClose, onSuccess, currentUser }) {
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="block text-sm font-bold text-slate-700">المدة</label>
                                     <div className="flex bg-slate-100 rounded-lg p-0.5">
-                                        <button 
-                                            type="button" 
+                                        <button
+                                            type="button"
                                             onClick={() => { setBookingType('hourly'); setDuration(1); }}
                                             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'hourly' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             بالساعة
                                         </button>
-                                        <button 
-                                            type="button" 
+                                        <button
+                                            type="button"
                                             onClick={() => { setBookingType('daily'); setDuration(1); }}
                                             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
@@ -543,15 +672,15 @@ function ChangeTimeModal({ booking, onConfirm, onCancel }) {
                         <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm font-bold text-slate-700">المدة الجديدة</label>
                             <div className="flex bg-slate-100 rounded-lg p-0.5">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => { setBookingType('hourly'); setDuration(booking.duration_hours); }}
                                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'hourly' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     بالساعة
                                 </button>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => { setBookingType('daily'); setDuration(Math.max(1, Math.floor(booking.duration_hours / 24))); }}
                                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${bookingType === 'daily' ? 'bg-white shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -663,6 +792,388 @@ export default function EmployeePanel() {
         }
     }
 
+    const rtReport = async () => {
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const { data: reportBookings, error } = await supabase
+                .from('bookings')
+                .select('*, tents (number)')
+                .gte('created_at', today.toISOString())
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            if (!reportBookings || reportBookings.length === 0) {
+                toast.error('لا توجد حجوزات اليوم للطباعة');
+                return;
+            }
+
+            let totalDur = 0;
+            let totalCash = 0;
+            let totalNet = 0;
+
+            let rowsHtml = '';
+
+            reportBookings.forEach(b => {
+                const tentNumber = b.tents?.number || '-';
+                const time = new Date(b.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+                const dur = b.duration_hours || 0;
+
+                let cash = Number(b.cash_amount) || 0;
+                let net = Number(b.network_amount) || 0;
+
+                if (cash === 0 && net === 0 && b.total_price > 0) {
+                    if (b.payment_type === 'cash') cash = b.total_price;
+                    else if (b.payment_type === 'network') net = b.total_price;
+                }
+
+                totalDur += dur;
+                totalCash += cash;
+                totalNet += net;
+
+                rowsHtml += `
+                  <tr>
+                    <td>${tentNumber}</td>
+                    <td dir="ltr">${time}</td>
+                    <td>${dur}</td>
+                    <td>${cash}</td>
+                    <td>${net}</td>
+                  </tr>
+                `;
+            });
+
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${y}/${m}/${d}`;
+
+            const html = `
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>تقرير لحظي</title>
+                    <style>
+                        @media print {
+                            @page { margin: 0; }
+                            body { margin: 0; padding: 10px; }
+                        }
+                        body {
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            font-size: 13px;
+                            color: #000;
+                            width: 100%;
+                            max-width: 300px;
+                            margin: 0 auto;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 10px;
+                        }
+                        .logos {
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            gap: 15px;
+                            margin-bottom: 10px;
+                            font-size: 24px;
+                            font-weight: 900;
+                            line-height: 1.1;
+                        }
+                        .logo-text {
+                            text-align: center;
+                        }
+                        .divider {
+                            width: 1.5px;
+                            height: 45px;
+                            background: #000;
+                        }
+                        .title {
+                            display: inline-block;
+                            background-color: #d1d5db;
+                            padding: 2px 15px;
+                            border-radius: 4px;
+                            font-weight: bold;
+                            font-size: 12px;
+                            margin-bottom: 5px;
+                            -webkit-print-color-adjust: exact;
+                            color-adjust: exact;
+                        }
+                        .date {
+                            font-weight: bold;
+                            font-size: 14px;
+                            margin-bottom: 15px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            text-align: center;
+                            font-weight: bold;
+                        }
+                        th, td {
+                            border: 1.5px solid #000;
+                            padding: 5px 2px;
+                        }
+                        th {
+                            font-size: 11px;
+                        }
+                        td {
+                            font-size: 12px;
+                        }
+                        .footer td {
+                            border-top: 2px solid #000;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logos">
+                            <div class="logo-text">تلال<br>مكة</div>
+                        </div>
+                        <div class="title">تقرير لحظي</div>
+                        <div class="date">${dateStr}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم الخيمة</th>
+                                <th>وقت الدخول</th>
+                                <th>المدة</th>
+                                <th>نقدي</th>
+                                <th>شبكة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                        <tfoot class="footer">
+                            <tr>
+                                <td colspan="2">المجموع</td>
+                                <td>${totalDur}</td>
+                                <td>${totalCash}</td>
+                                <td>${totalNet}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            const printWin = window.open('', '', 'width=400,height=600');
+            printWin.document.write(html);
+            printWin.document.close();
+            printWin.focus();
+            setTimeout(() => {
+                printWin.print();
+                printWin.close();
+            }, 500);
+
+        } catch (err) {
+            console.error(err);
+            toast.error('حدث خطأ أثناء تحميل التقرير');
+        }
+    }
+
+    const dailyReportAndSignOut = async () => {
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const { data: reportBookings, error } = await supabase
+                .from('bookings')
+                .select('*, tents (number)')
+                .gte('created_at', today.toISOString())
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            if (!reportBookings || reportBookings.length === 0) {
+                toast('لا توجد حجوزات اليوم للطباعة', { icon: 'ℹ️' });
+                signOut();
+                return;
+            }
+
+            const grouped = {};
+            let totalDur = 0;
+            let totalCash = 0;
+            let totalNet = 0;
+
+            reportBookings.forEach(b => {
+                const tentNumber = b.tents?.number || '-';
+                const dur = b.duration_hours || 0;
+
+                let cash = Number(b.cash_amount) || 0;
+                let net = Number(b.network_amount) || 0;
+
+                if (cash === 0 && net === 0 && b.total_price > 0) {
+                    if (b.payment_type === 'cash') cash = b.total_price;
+                    else if (b.payment_type === 'network') net = b.total_price;
+                }
+
+                if (!grouped[tentNumber]) grouped[tentNumber] = { dur: 0, cash: 0, net: 0 };
+                grouped[tentNumber].dur += dur;
+                grouped[tentNumber].cash += cash;
+                grouped[tentNumber].net += net;
+
+                totalDur += dur;
+                totalCash += cash;
+                totalNet += net;
+            });
+
+            const sortedTents = Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b));
+
+            let rowsHtml = '';
+            sortedTents.forEach(tentNumber => {
+                const row = grouped[tentNumber];
+                rowsHtml += `
+                  <tr>
+                    <td>${tentNumber}</td>
+                    <td>${row.dur.toFixed(2)}</td>
+                    <td>${row.cash}</td>
+                    <td>${row.net}</td>
+                  </tr>
+                `;
+            });
+
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${y}/${m}/${d}`;
+
+            const html = `
+                <!DOCTYPE html>
+                <html lang="ar" dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>تقرير يومي</title>
+                    <style>
+                        @media print {
+                            @page { margin: 0; }
+                            body { margin: 0; padding: 10px; }
+                        }
+                        body {
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            font-size: 13px;
+                            color: #000;
+                            width: 100%;
+                            max-width: 300px;
+                            margin: 0 auto;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 25px;
+                        }
+                        .logos {
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            gap: 15px;
+                            font-size: 24px;
+                            font-weight: 900;
+                            line-height: 1.1;
+                            margin-bottom: 10px;
+                        }
+                        .logo-text {
+                            text-align: center;
+                        }
+                        .divider {
+                            width: 1.5px;
+                            height: 45px;
+                            background: #000;
+                        }
+                        .title {
+                            display: inline-block;
+                            background-color: #d1d5db;
+                            padding: 2px 15px;
+                            border-radius: 4px;
+                            font-weight: bold;
+                            font-size: 12px;
+                            margin-bottom: 5px;
+                            -webkit-print-color-adjust: exact;
+                            color-adjust: exact;
+                        }
+                        .date {
+                            font-weight: bold;
+                            font-size: 14px;
+                            margin-bottom: 15px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            text-align: center;
+                            font-weight: bold;
+                        }
+                        th, td {
+                            border: 1.5px solid #000;
+                            padding: 5px 2px;
+                        }
+                        th {
+                            font-size: 11px;
+                        }
+                        td {
+                            font-size: 12px;
+                        }
+                        .footer td {
+                            border-top: 2px solid #000;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logos">
+                            <div class="logo-text">تلال<br>مكة</div>
+                        </div>
+                        <div class="title">تقرير يومي</div>
+                        <div class="date">${dateStr}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم الخيمة</th>
+                                <th>المدة</th>
+                                <th>نقدي</th>
+                                <th>شبكة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                        <tfoot class="footer">
+                            <tr>
+                                <td>المجموع</td>
+                                <td>${totalDur}</td>
+                                <td>${totalCash.toFixed(2)}</td>
+                                <td>${totalNet.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            const printWin = window.open('', '', 'width=400,height=600');
+            if (printWin) {
+                printWin.document.write(html);
+                printWin.document.close();
+                printWin.focus();
+                setTimeout(() => {
+                    printWin.print();
+                    printWin.close();
+                    signOut();
+                }, 500);
+            } else {
+                signOut();
+            }
+
+        } catch (err) {
+            console.error(err);
+            toast.error('حدث خطأ أثناء تحميل التقرير');
+            signOut();
+        }
+    }
+
     return (
         <div className="min-h-screen bg-slate-100 font-sans flex flex-col" dir="rtl">
 
@@ -685,7 +1196,13 @@ export default function EmployeePanel() {
                         <span>{currentTime.toLocaleTimeString('ar-EG')}</span>
                     </div>
                     <button
-                        onClick={signOut}
+                        onClick={rtReport}
+                        className="flex items-center gap-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/10 hover:text-white px-4 py-2 rounded-lg transition-colors font-bold text-sm"
+                    >
+                        <ClipboardMinus size={16} className="rotate-180" /> تقرير لحظي
+                    </button>
+                    <button
+                        onClick={dailyReportAndSignOut}
                         className="flex items-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-colors font-bold text-sm"
                     >
                         <LogOut size={16} className="rotate-180" /> إنهاء الوردية
