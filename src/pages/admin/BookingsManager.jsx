@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Table, Td, Badge, LoadingOverlay } from '../../components/UI'
+import { SaudiRiyal, ChevronDown, Calendar } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 export default function BookingsManager() {
     const [bookings, setBookings] = useState([])
     const [loading, setLoading] = useState(true)
+    const [expandedDay, setExpandedDay] = useState(null)
 
     const fetchBookings = async () => {
         try {
@@ -36,6 +38,44 @@ export default function BookingsManager() {
         }
     }
 
+    const groupedBookings = useMemo(() => {
+        const groups = {}
+        bookings.forEach(b => {
+            const dateObj = new Date(b.created_at)
+            
+            // Format to something like: الأحد، ١ مارس ٢٠٢٦
+            const dateStr = dateObj.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+            
+            if (!groups[dateStr]) {
+                groups[dateStr] = {
+                    date: dateStr,
+                    bookings: [],
+                    totalMoney: 0,
+                    totalCash: 0,
+                    totalNetwork: 0,
+                    timestamp: new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime() 
+                }
+            }
+
+            let cash = Number(b.cash_amount) || 0;
+            let net = Number(b.network_amount) || 0;
+
+            if (cash === 0 && net === 0 && b.total_price > 0) {
+                if (b.payment_type === 'cash') cash = b.total_price;
+                else if (b.payment_type === 'network') net = b.total_price;
+            }
+
+            groups[dateStr].bookings.push(b)
+            groups[dateStr].totalMoney += b.total_price || 0
+            groups[dateStr].totalCash += cash
+            groups[dateStr].totalNetwork += net
+        })
+
+        const sortedGroups = Object.values(groups).sort((a, b) => b.timestamp - a.timestamp)
+        return sortedGroups
+    }, [bookings])
+
+
     return (
         <div className="space-y-6">
             <div className="mb-8">
@@ -43,30 +83,82 @@ export default function BookingsManager() {
                 <p className="text-slate-500 mt-1">عرض جميع الحجوزات السابقة والنشطة في النظام</p>
             </div>
 
-            <Card>
-                {loading ? <LoadingOverlay message="جاري جلب الحجوزات..." /> : (
-                    <Table headers={['رقم الخيمة', 'اسم العميل', 'الموظف', 'المدة (ساعات)', 'المبلغ', 'الحالة', 'وقت الحجز']}>
-                        {bookings.map((booking) => (
-                            <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors">
-                                <Td className="font-bold text-secondary">{booking.tents?.number || '-'}</Td>
-                                <Td>{booking.customer_name}</Td>
-                                <Td>{booking.users?.name || '-'}</Td>
-                                <Td>{booking.duration_hours}</Td>
-                                <Td className="font-bold text-primary">{booking.total_price} ₪</Td>
-                                <Td>{getStatusBadge(booking.status)}</Td>
-                                <Td dir="ltr" className="text-right text-sm text-slate-500">
-                                    {new Date(booking.created_at).toLocaleString('ar-EG')}
-                                </Td>
-                            </tr>
-                        ))}
-                        {bookings.length === 0 && (
-                            <tr>
-                                <Td colSpan={7} className="text-center py-8 text-slate-500">لا توجد حجوزات</Td>
-                            </tr>
-                        )}
-                    </Table>
-                )}
-            </Card>
+            {loading ? <LoadingOverlay message="جاري جلب الحجوزات..." /> : (
+                <div className="space-y-4">
+                    {groupedBookings.length === 0 && (
+                        <Card><div className="text-center py-8 text-slate-500">لا توجد حجوزات</div></Card>
+                    )}
+                    {groupedBookings.map(dayGroup => (
+                        <div key={dayGroup.date} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            {/* Header / Summary */}
+                            <div 
+                                onClick={() => setExpandedDay(expandedDay === dayGroup.date ? null : dayGroup.date)}
+                                className={`cursor-pointer p-5 flex items-center justify-between transition-colors ${expandedDay === dayGroup.date ? 'bg-primary/5 border-b border-primary/10' : 'hover:bg-slate-50'}`}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                                        <Calendar size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg text-secondary">{dayGroup.date}</h3>
+                                        <p className="text-sm text-slate-500">{dayGroup.bookings.length} حجوزات</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-8">
+                                    <div className="flex flex-col items-end">
+                                        <p className="text-xs text-slate-500 font-bold mb-1">الإجمالي</p>
+                                        <p className="font-bold text-xl text-primary flex items-center gap-1">
+                                            {dayGroup.totalMoney} <SaudiRiyal size={18} />
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <p className="text-xs text-slate-500 font-bold mb-1">نقدي</p>
+                                        <p className="font-bold text-amber-600 flex items-center gap-1">
+                                            {dayGroup.totalCash} <SaudiRiyal size={16} />
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <p className="text-xs text-slate-500 font-bold mb-1">شبكة</p>
+                                        <p className="font-bold text-blue-600 flex items-center gap-1">
+                                            {dayGroup.totalNetwork} <SaudiRiyal size={16} />
+                                        </p>
+                                    </div>
+                                    <div className={`p-2 rounded-full transition-transform ${expandedDay === dayGroup.date ? 'rotate-180 bg-slate-200' : 'bg-slate-100'}`}>
+                                        <ChevronDown size={20} className="text-slate-500" />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Expandable Content (The detail table) */}
+                            {expandedDay === dayGroup.date && (
+                                <div className="p-0 border-t border-slate-100 bg-slate-50/50">
+                                    <Table headers={['رقم الخيمة', 'اسم العميل', 'الموظف', 'المدة (ساعات)', 'المبلغ', 'الحالة', 'وقت الحجز']}>
+                                        {dayGroup.bookings.map((booking) => (
+                                            <tr key={booking.id} className="hover:bg-white transition-colors bg-slate-50/30">
+                                                <Td className="font-bold text-secondary">{booking.tents?.number || '-'}</Td>
+                                                <Td>{booking.customer_name}</Td>
+                                                <Td>{booking.users?.name || '-'}</Td>
+                                                <Td>{booking.duration_hours}</Td>
+                                                <Td className="font-semibold text-primary">
+                                                    <span className="flex items-center gap-1">
+                                                        {booking.total_price}
+                                                        <SaudiRiyal size={18} />
+                                                    </span>
+                                                </Td>
+                                                <Td>{getStatusBadge(booking.status)}</Td>
+                                                <Td dir="ltr" className="text-right text-sm text-slate-500">
+                                                    {new Date(booking.created_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}
+                                                </Td>
+                                            </tr>
+                                        ))}
+                                    </Table>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

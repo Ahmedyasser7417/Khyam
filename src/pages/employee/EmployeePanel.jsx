@@ -741,7 +741,7 @@ function ChangeTimeModal({ booking, onConfirm, onCancel }) {
    Main Employee Panel
 ───────────────────────────────────────── */
 export default function EmployeePanel() {
-    const { signOut, user } = useAuth()
+    const { signOut, user, userName } = useAuth()
     const [bookings, setBookings] = useState([])
     const [loading, setLoading] = useState(true)
     const [currentTime, setCurrentTime] = useState(new Date())
@@ -1186,7 +1186,7 @@ export default function EmployeePanel() {
                     <div>
                         <h1 className="text-xl font-bold">نقطة البيع - خيام</h1>
                         <p className="text-slate-400 text-sm flex items-center gap-1.5">
-                            <User size={13} /> الكاشير: {user?.user_metadata?.name || 'أحمد'}
+                            <User size={13} /> الكاشير: {userName || user?.user_metadata?.name || 'مستخدم'}
                         </p>
                     </div>
                 </div>

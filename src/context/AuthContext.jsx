@@ -7,6 +7,7 @@ const AuthContext = createContext()
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null)
     const [role, setRole] = useState(null)
+    const [userName, setUserName] = useState(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -52,12 +53,13 @@ export function AuthProvider({ children }) {
         try {
             const { data } = await supabase
                 .from('users')
-                .select('role')
+                .select('role, name')
                 .eq('id', userId)
                 .single()
 
             if (data) {
                 setRole(data.role)
+                setUserName(data.name)
             }
         } catch (error) {
             console.error('Error fetching user role:', error)
@@ -83,6 +85,7 @@ export function AuthProvider({ children }) {
         // Clear mock state too
         setUser(null)
         setRole(null)
+        setUserName(null)
         try {
             await supabase.auth.signOut()
         } catch {
@@ -91,7 +94,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, role, loading, signIn, signOut, mockLogin }}>
+        <AuthContext.Provider value={{ user, role, userName, loading, signIn, signOut, mockLogin }}>
             {!loading && children}
         </AuthContext.Provider>
     )
