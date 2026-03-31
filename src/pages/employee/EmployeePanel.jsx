@@ -996,6 +996,7 @@ export default function EmployeePanel() {
             }
 
             const grouped = {};
+            let totalCount = 0;
             let totalDur = 0;
             let totalCash = 0;
             let totalNet = 0;
@@ -1012,11 +1013,14 @@ export default function EmployeePanel() {
                     else if (b.payment_type === 'network') net = b.total_price;
                 }
 
-                if (!grouped[tentNumber]) grouped[tentNumber] = { dur: 0, cash: 0, net: 0 };
+                if (!grouped[tentNumber]) grouped[tentNumber] = { count: 0, dur: 0, cash: 0, net: 0, total: 0 };
+                grouped[tentNumber].count += 1;
                 grouped[tentNumber].dur += dur;
                 grouped[tentNumber].cash += cash;
                 grouped[tentNumber].net += net;
+                grouped[tentNumber].total += (cash + net);
 
+                totalCount += 1;
                 totalDur += dur;
                 totalCash += cash;
                 totalNet += net;
@@ -1030,9 +1034,11 @@ export default function EmployeePanel() {
                 rowsHtml += `
                   <tr>
                     <td>${tentNumber}</td>
-                    <td>${row.dur.toFixed(2)}</td>
+                    <td>${row.count}</td>
+                    <td>${row.dur}</td>
                     <td>${row.cash}</td>
                     <td>${row.net}</td>
+                    <td>${row.total}</td>
                   </tr>
                 `;
             });
@@ -1131,10 +1137,12 @@ export default function EmployeePanel() {
                     <table>
                         <thead>
                             <tr>
-                                <th>رقم الخيمة</th>
-                                <th>المدة</th>
-                                <th>نقدي</th>
+                                <th>الخيمة</th>
+                                <th>مرات</th>
+                                <th>ساعات</th>
+                                <th>نقدى</th>
                                 <th>شبكة</th>
+                                <th>الإجمالي</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1143,9 +1151,11 @@ export default function EmployeePanel() {
                         <tfoot class="footer">
                             <tr>
                                 <td>المجموع</td>
+                                <td>${totalCount}</td>
                                 <td>${totalDur}</td>
-                                <td>${totalCash.toFixed(2)}</td>
-                                <td>${totalNet.toFixed(2)}</td>
+                                <td>${totalCash}</td>
+                                <td>${totalNet}</td>
+                                <td>${totalCash + totalNet}</td>
                             </tr>
                         </tfoot>
                     </table>

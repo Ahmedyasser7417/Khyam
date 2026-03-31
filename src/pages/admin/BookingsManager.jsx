@@ -50,6 +50,7 @@ export default function BookingsManager() {
                 groups[dateStr] = {
                     date: dateStr,
                     bookings: [],
+                    tents: {},
                     totalMoney: 0,
                     totalCash: 0,
                     totalNetwork: 0,
@@ -69,9 +70,31 @@ export default function BookingsManager() {
             groups[dateStr].totalMoney += b.total_price || 0
             groups[dateStr].totalCash += cash
             groups[dateStr].totalNetwork += net
+
+            const tentNum = b.tents?.number || 'غير معروف'
+            if (!groups[dateStr].tents[tentNum]) {
+                groups[dateStr].tents[tentNum] = {
+                    tentNumber: tentNum,
+                    bookingCount: 0,
+                    totalHours: 0,
+                    totalMoney: 0
+                }
+            }
+            groups[dateStr].tents[tentNum].bookingCount += 1
+            groups[dateStr].tents[tentNum].totalHours += Number(b.duration_hours) || 0
+            groups[dateStr].tents[tentNum].totalMoney += Number(b.total_price) || 0
         })
 
         const sortedGroups = Object.values(groups).sort((a, b) => b.timestamp - a.timestamp)
+        
+        sortedGroups.forEach(group => {
+            group.tentsList = Object.values(group.tents).sort((a, b) => {
+                const numA = parseInt(a.tentNumber) || 0;
+                const numB = parseInt(b.tentNumber) || 0;
+                return numA - numB;
+            })
+        })
+
         return sortedGroups
     }, [bookings])
 
@@ -133,22 +156,19 @@ export default function BookingsManager() {
                             {/* Expandable Content (The detail table) */}
                             {expandedDay === dayGroup.date && (
                                 <div className="p-0 border-t border-slate-100 bg-slate-50/50">
-                                    <Table headers={['رقم الخيمة', 'اسم العميل', 'الموظف', 'المدة (ساعات)', 'المبلغ', 'الحالة', 'وقت الحجز']}>
-                                        {dayGroup.bookings.map((booking) => (
-                                            <tr key={booking.id} className="hover:bg-white transition-colors bg-slate-50/30">
-                                                <Td className="font-bold text-secondary">{booking.tents?.number || '-'}</Td>
-                                                <Td>{booking.customer_name}</Td>
-                                                <Td>{booking.users?.name || '-'}</Td>
-                                                <Td>{booking.duration_hours}</Td>
+                                    <Table headers={['رقم الخيمة', 'عدد مرات الحجز', 'إجمالي الساعات', 'إجمالي المبلغ']}>
+                                        {dayGroup.tentsList.map((tentData, index) => (
+                                            <tr key={index} className="hover:bg-white transition-colors bg-slate-50/30">
+                                                <Td className="font-bold text-secondary">خيمة {tentData.tentNumber}</Td>
+                                                <Td>
+                                                    <Badge type="primary">{tentData.bookingCount} مرات</Badge>
+                                                </Td>
+                                                <Td className="font-medium text-slate-700">{tentData.totalHours} ساعة</Td>
                                                 <Td className="font-semibold text-primary">
                                                     <span className="flex items-center gap-1">
-                                                        {booking.total_price}
+                                                        {tentData.totalMoney}
                                                         <SaudiRiyal size={18} />
                                                     </span>
-                                                </Td>
-                                                <Td>{getStatusBadge(booking.status)}</Td>
-                                                <Td dir="ltr" className="text-right text-sm text-slate-500">
-                                                    {new Date(booking.created_at).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}
                                                 </Td>
                                             </tr>
                                         ))}
